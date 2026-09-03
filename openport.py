@@ -1,7 +1,13 @@
 import socket
+import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-target = "scanme.nmap.org"
+parser = argparse.ArgumentParser(description="Scan open ports on a target host.")
+parser.add_argument("target", help="Target host to scan (IP or hostname)")
+parser.add_argument("-p", "--ports", type=str, default="1-1024", help="Port range to scan (default: 1-1024)")
+args = parser.parse_args()
+
+target = args.target
 
 def scan_port(target, port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -15,7 +21,18 @@ def scan_port(target, port):
             return {"port": port, "banner": banner}   # open: return info
     return None                                        # closed: return None
 
-ports = range(20, 1024)
+
+def parse_ports(spec):
+    ports = []
+    for part in spec.split(","):        # handle the commas first
+        if "-" in part:
+            start, end = map(int, part.split("-"))
+            ports.extend(range(start, end + 1))
+        else:
+            ports.append(int(part))
+    return ports
+
+ports = parse_ports(args.ports)
 open_ports = []
 
 with ThreadPoolExecutor(max_workers=100) as executor:
