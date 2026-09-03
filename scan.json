@@ -1,7 +1,7 @@
 [
   {
     "port": 22,
-    "banner": ""
+    "banner": "SSH-2.0-OpenSSH_6.6.1p1 Ubuntu-2ubuntu2.13"
   },
   {
     "port": 80,

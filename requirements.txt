@@ -1,0 +1,11 @@
+1. Port Scanning Tool
+A concurrent TCP port scanner that checks which ports are open on a target host and grabs service banners where it can.
+
+2. Why I made openport?
+I built this to understand how port scanning and service reconnaissance actually work under the hood, rather than just running tools like nmap without knowing what they do.
+
+3. What it does?
+By running the python script in the terminal with correct arguments(ex: python portscan.py scanme.nmap.org -p 22,80,443) it connects to the range of ports of list of ports given and outputs the port number and the banner.
+
+4.Problems I hit:
+-Banner grabbing depends on timing. When you connect to a port, some services (like SSH) send a little greeting — the banner — a fraction of a second after the connection opens. Your recv has to still be waiting at the moment that greeting arrives to catch it. There's a window, and if the window closes before the data shows up, you get nothing.
