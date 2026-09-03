@@ -1,10 +1,13 @@
 import socket
 import argparse
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 parser = argparse.ArgumentParser(description="Scan open ports on a target host.")
 parser.add_argument("target", help="Target host to scan (IP or hostname)")
 parser.add_argument("-p", "--ports", type=str, default="1-1024", help="Port range to scan (default: 1-1024)")
+parser.add_argument("--json", metavar="FILE",  # with your other arguments
+                    help="Write results to a JSON file")
 args = parser.parse_args()
 
 target = args.target
@@ -30,7 +33,7 @@ def parse_ports(spec):
             ports.extend(range(start, end + 1))
         else:
             ports.append(int(part))
-    return ports
+    return [p for p in ports if 1 <= p <= 65535]  # filter valid ports
 
 ports = parse_ports(args.ports)
 open_ports = []
@@ -51,3 +54,8 @@ for r in open_ports:
     print(f"Port {r['port']} is open. Banner: {r['banner']}")
 
 print(f"\n{len(open_ports)} open ports found.")
+
+if args.json:                                   # after the scan loop
+    with open(args.json, "w") as f:
+        json.dump(open_ports, f, indent=2)
+    print(f"Results written to {args.json}")
