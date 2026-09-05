@@ -1,11 +1,13 @@
 # 🛡️ netsec-toolkit
 
-> Two small security tools I built from scratch in Python to learn how network
-> reconnaissance and log analysis actually work — not just to run existing tools,
-> but to understand what they do under the hood.
+> Three small security tools I built from scratch in Python to learn how network
+> reconnaissance, log analysis, and traffic inspection actually work — not just to
+> run existing tools, but to understand what they do under the hood.
 >
 > 1. **`portscan.py`** — a concurrent TCP port scanner (offense / recon)
 > 2. **`logparse.py`** — an SSH auth-log analyzer (defense / detection)
+> 3. **`packetsniff.py`** — a live packet sniffer with DNS logging, plaintext-HTTP
+>    flagging, and port-scan detection (defense / monitoring)
 
 ⚠️ **Authorized use only.** Only scan hosts you own or have explicit
 permission to test. All examples below use `scanme.nmap.org`, a host the Nmap
@@ -19,8 +21,8 @@ I'm aiming to work in 3D art, but I'm studying IT and wanted hands-on security
 skills to go with the theory from my coursework. I built these to understand how
 port scanning, service reconnaissance, and log-based attack detection actually
 work under the hood, rather than just running tools like `nmap` or `fail2ban`
-without knowing what they do. The two tools cover both sides: the scanner
-*probes* systems, the parser *watches* them.
+without knowing what they do. The tools cover both sides: the scanner
+*probes* systems, while the parser and sniffer *watch* them.
 
 ---
 
@@ -190,6 +192,108 @@ IP 203.0.113.44 has exceeded the threshold with 6 failed attempts.
 
 ---
 
+# 🔬 Tool 3: packetsniff.py — live packet sniffer
+
+⚠️ **Local machine only.** This captures traffic on my own machine's network
+interface. Only ever run a sniffer on networks and devices you own or have
+explicit permission to monitor — capturing other people's traffic is illegal.
+
+## What it does
+
+Captures live network packets (using `scapy`) and inspects each one. It parses
+the layers (Ethernet → IP → TCP/UDP), labels well-known ports, and adds three
+security features on top:
+
+1. **DNS query logging** — prints every domain the machine looks up, revealing
+   the background chatter of the OS and apps.
+2. **Plaintext HTTP flagging** — flags unencrypted HTTP (port 80) and shows its
+   readable payload, in contrast to the encrypted gibberish of HTTPS.
+3. **Port-scan detection** — tracks how many distinct ports each source IP hits,
+   and flags any source that crosses a threshold as a possible scanner.
+
+```bash
+# Capture 10 packets (needs admin/root + Npcap on Windows)
+python packetsniff.py -c 10
+
+# Only HTTPS traffic
+python packetsniff.py -f "tcp port 443" -c 20
+
+# Watch DNS lookups
+python packetsniff.py -f "udp port 53" -c 20
+```
+
+Example output:
+
+```
+[DNS Query] ... -> ...  Domain: github.com
+[HTTPS] [TCP] 192.168.1.139:51654 -> 140.82.112.21:443
+Insecure HTTP traffic detected: 192.168.1.139:50663 -> 34.223.124.45:80
+    Readable data: b'GET / HTTP/1.1\r\nUser-Agent: Mozilla/5.0 ...'
+[!!!] Potential port scan from 20.184.175.4 - hit 6 unique ports
+```
+
+## How I built it — the journey
+
+<!-- TODO (your words — you built each of these):
+     1–2 sentences per stage. -->
+
+**1. Capturing and reading one packet.**
+My very first captured packet was a DNS query my own machine sent to a Microsoft
+server — `Ether / IPv6 / UDP / DNS`. What stood out was seeing a packet as a
+stack of layers, each one wrapped inside the next: Ethernet (hardware/MAC
+addresses) carries IP (source/destination addresses), which carries TCP or UDP
+(ports), which carries the actual payload. Seeing that structure live, instead of
+as a textbook diagram, made the whole TCP/IP model click.
+
+**2. Extracting fields — addresses, ports, protocol.**
+I pulled the source/destination addresses, ports, and protocol out of each
+packet. I had to handle both IPv4 and IPv6 (`packet[IP]` vs `packet[IPv6]`),
+since my real traffic used both — a naive version that only checked one would
+crash on the other. I read ports from the TCP/UDP layers and labeled well-known
+ones (443 → HTTPS, 53 → DNS) so each line was readable at a glance.
+
+**3. The three security features.**
+- **DNS logging** — parsing the DNS layer to print every domain my machine looks
+  up. Eye-opening: I could see the OS and apps quietly contacting telemetry
+  servers I never opened.
+- **Plaintext HTTP flagging** — the biggest lesson of the project. When I captured
+  plain HTTP I could read the payload directly (`GET / HTTP/1.1...`). HTTPS traffic,
+  by contrast, was just encrypted bytes (`\x17\x03\x03...`). **HTTPS exists to
+  encrypt the data travelling across the network — without it, anyone capturing
+  the traffic can read it in plain text.** I didn't read that in a book; I saw
+  both cases with my own tool.
+- **Scan detection** — tracking the set of destination ports each source IP hits
+  (using a `defaultdict(set)`), and flagging any IP that crosses a threshold,
+  warning only once per source.
+
+## Problems I hit (sniffer)
+
+**A false positive taught me about threshold tuning.** My scan detector flagged a
+*Microsoft server* as a port scanner. It wasn't an attack — it was a normal app
+opening many parallel HTTPS connections at once, which tripped my threshold of 5.
+The lesson: a detection rule set too sensitively flags normal traffic. Real
+tuning means watching normal traffic first, seeing how high it legitimately goes,
+and setting the threshold above that — high enough to catch real scans (which hit
+dozens or hundreds of ports) but not everyday bursts.
+
+**Where you capture matters.** When I ran my own port scanner against my own
+machine, the sniffer never detected it — even though the scan was clearly
+happening (it found open ports). The reason: traffic from a machine to its own IP
+loops back internally and doesn't cross the network interface the sniffer captures
+on, so scapy never sees it. To demonstrate scan detection properly, the scan needs
+to come from a *separate* machine. That's a real limitation of capture placement,
+not a bug in the detector — and a good reason to build a proper multi-machine lab.
+
+## What I'd add next (sniffer)
+
+- Save captures to a `.pcap` file to open in Wireshark
+- A live protocol-count dashboard (TCP vs UDP vs DNS, top talkers)
+- HTTPS handling limitation: 443 payloads are encrypted, so only metadata
+  (who talks to whom) is visible — this is by design, and worth documenting
+- Detect scans from a separate machine in a proper lab setup
+
+---
+
 ## What I learned (whole project)
 
 <!-- TODO: 4–6 bullets IN YOUR OWN WORDS. Seeds below — rewrite them: -->
@@ -199,7 +303,10 @@ IP 203.0.113.44 has exceeded the threshold with 6 failed attempts.
 - That network behavior is non-deterministic and tools must be robust to it
 - How regex turns unstructured log text into structured data you can count and analyze
 - How simple detection rules (thresholds, set membership) catch real attack patterns
-- That offense (scanning) and defense (log analysis) are two sides of the same skill set
+- How network packets are layered (Ethernet → IP → TCP/UDP → payload), seen live
+- Why HTTPS matters — I saw readable HTTP payloads next to encrypted HTTPS on the wire
+- That detection rules need tuning: too low a threshold flags normal traffic (false positives)
+- That offense (scanning) and defense (log analysis, sniffing) are two sides of the same skill set
 
 ---
 
