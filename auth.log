@@ -1,0 +1,11 @@
+Sep  1 08:12:04 web01 sshd[1121]: Accepted publickey for alice from 10.0.0.5 port 51222 ssh2
+Sep  1 09:03:11 web01 sshd[1220]: Failed password for root from 203.0.113.44 port 40122 ssh2
+Sep  1 09:03:13 web01 sshd[1220]: Failed password for root from 203.0.113.44 port 40124 ssh2
+Sep  1 09:03:15 web01 sshd[1220]: Failed password for root from 203.0.113.44 port 40126 ssh2
+Sep  1 09:03:17 web01 sshd[1220]: Failed password for root from 203.0.113.44 port 40128 ssh2
+Sep  1 09:03:19 web01 sshd[1220]: Failed password for root from 203.0.113.44 port 40130 ssh2
+Sep  1 09:03:21 web01 sshd[1220]: Failed password for root from 203.0.113.44 port 40132 ssh2
+Sep  1 10:15:22 web01 sshd[1450]: Failed password for bob from 192.0.2.88 port 44100 ssh2
+Sep  1 10:15:30 web01 sshd[1450]: Failed password for bob from 192.0.2.88 port 44102 ssh2
+Sep  1 10:15:45 web01 sshd[1451]: Accepted password for bob from 192.0.2.88 port 44110 ssh2
+Sep  1 11:02:10 web01 sshd[1502]: Accepted publickey for alice from 10.0.0.5 port 51888 ssh2
