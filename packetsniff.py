@@ -1,5 +1,10 @@
 import argparse
 from scapy.all import sniff, IP, IPv6, TCP, UDP, DNS, DNSQR, ICMP, ICMPv6EchoRequest, ICMPv6EchoReply
+from collections import defaultdict
+
+scan_tracker = defaultdict(set)
+SCAN_THRESHOLD = 50  # Number of unique ports to consider as a scan
+already_flagged = set()  # To keep track of already flagged IPs
 
 WELL_KNOWN_PORTS = {
     20: "FTP-data", 21: "FTP", 22: "SSH", 25: "SMTP",
@@ -33,6 +38,14 @@ def process_packet(packet):
         protocol = 'TCP'
         sport = packet['TCP'].sport
         dport = packet['TCP'].dport
+
+        # New - scan detection logic
+        scan_tracker[src].add(dport)
+        if len(scan_tracker[src]) > SCAN_THRESHOLD and src not in already_flagged:
+            print(f"[!!!]Potential port scan from {src}"
+                  f" - hit {len(scan_tracker[src])} unique ports")
+            already_flagged.add(src)  # Mark this IP as flagged to avoid repeated alerts
+
     elif packet.haslayer('UDP'):
         protocol = 'UDP'
         sport = packet['UDP'].sport
